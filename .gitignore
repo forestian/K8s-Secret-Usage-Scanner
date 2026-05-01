@@ -1,0 +1,37 @@
+# Build artifacts
+ksecret-map
+ksecret-map.exe
+/dist/
+
+# Go toolchain
+vendor/
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Test output artifacts
+report.md
+*.scan.json
+
+# Environment and secrets — never commit these
+.env
+.env.*
+*.kubeconfig
+kubeconfig
+kubeconfig.*
+*credentials*
+*token*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
