@@ -124,9 +124,26 @@ jobs:
           cd dist
           sha256sum *.tar.gz > checksums.txt
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          files: |
-            dist/*.tar.gz
-            dist/checksums.txt
+      - name: Ensure release exists
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" &>/dev/null; then
+            echo "Release $TAG already exists — uploading assets only."
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "Creating release $TAG ..."
+            gh release create "$TAG" --title "$TAG" --generate-notes \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            echo "::error::Release '$TAG' not found. Create the release on GitHub before running workflow_dispatch."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt \
+            --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
