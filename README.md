@@ -15,7 +15,24 @@ Kubernetes Secrets accumulate over time. Teams frequently lose track of which Se
 
 `ksecret-map` **never reads, prints, or writes Secret data values**. It only analyzes Secret names, namespaces, references, and resource metadata. No Secret values are decoded or stored.
 
-## Installation
+## Install from GitHub Releases
+
+Download a prebuilt binary from the [GitHub Releases page](https://github.com/forestian/K8s-Secret-Usage-Scanner/releases).
+
+**Linux/macOS:**
+```bash
+tar -xzf ksecret-map_<version>_<os>_<arch>.tar.gz
+chmod +x ksecret-map
+./ksecret-map version
+```
+
+**Windows:**  
+Download the Windows archive, extract it, and run:
+```
+ksecret-map.exe version
+```
+
+## Installation (build from source)
 
 ```bash
 git clone https://github.com/k8s-secret-usage-scanner/ksecret-map
