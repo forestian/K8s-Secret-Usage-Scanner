@@ -1,172 +1,183 @@
 # ksecret-map
 
-`ksecret-map` scans Kubernetes manifests or a live cluster and maps where Secrets are used. It helps DevOps, SRE, DevSecOps, and platform engineers answer:
+Find where every Kubernetes Secret is used — before you rotate, delete, or wonder what breaks.
 
-- **Where is this Secret used?**
-- **Which Secrets are unused?**
-- **Which workloads depend on this Secret?**
-- **Can I safely delete or rotate this Secret?**
+## Quick Demo
 
-## Why Secret usage mapping matters
-
-Kubernetes Secrets accumulate over time. Teams frequently lose track of which Secrets are still in use, which workloads reference them, and via what mechanism (env var, volume, imagePullSecret, etc.). Before rotating or deleting a Secret, you need to know its blast radius. `ksecret-map` makes that visible in seconds.
-
-## Security
-
-`ksecret-map` **never reads, prints, or writes Secret data values**. It only analyzes Secret names, namespaces, references, and resource metadata. No Secret values are decoded or stored.
-
-## Install from GitHub Releases
-
-Download a prebuilt binary from the [GitHub Releases page](https://github.com/forestian/K8s-Secret-Usage-Scanner/releases).
-
-**Linux/macOS:**
 ```bash
+ksecret-map scan --dir ./examples --include-unused
+```
+
+```
+K8s Secret Usage Scanner
+
+Mode: manifest
+Scanned files: 4
+Scanned resources: 4
+
+Summary:
+  Secrets found:        2
+  Secret references:    3
+  Unused secrets:       1
+  High risk findings:   0
+  Medium risk findings: 1
+  Low risk findings:    2
+
+Secret Usage:
+
+NAMESPACE             SECRET                          USED  REFS
+--------------------  ------------------------------  ----  ----
+monitoring            loki-s3-secret                  yes   3
+(default)             unused-secret                   no    0
+
+References:
+
+SECRET                          NAMESPACE             TYPE                          RESOURCE
+------------------------------  --------------------  ----------------------------  ------------------------------
+loki-s3-secret                  monitoring            env                           Deployment/loki-backend container=loki
+loki-s3-secret                  monitoring            env                           Deployment/loki-backend container=loki
+loki-s3-secret                  monitoring            volume                        Deployment/loki-backend
+
+Findings:
+
+[MEDIUM] Secret injected via environment variable
+  Secret: monitoring/loki-s3-secret
+  Rule: env-secret-ref
+
+  Explanation:
+  Secrets injected as environment variables are visible in process listings and may appear in logs.
+
+  Suggestion:
+  Consider mounting the Secret as a volume or using an external secrets manager.
+
+[LOW] Secret exists but has no references
+  Secret: (default)/unused-secret
+  Rule: unused-secret
+
+  Explanation:
+  This Secret has no detected references in the scanned manifests.
+
+  Suggestion:
+  Verify whether this Secret is still needed and remove it if not.
+```
+
+## Demo
+
+GIF demo coming soon.
+
+## Quick Start
+
+Download a prebuilt binary from the [GitHub Releases page](https://github.com/forestian/K8s-Secret-Usage-Scanner/releases):
+
+```bash
+# Linux / macOS
 tar -xzf ksecret-map_<version>_<os>_<arch>.tar.gz
 chmod +x ksecret-map
 ./ksecret-map version
-```
 
-**Windows:**  
-Download the Windows archive, extract it, and run:
-```
+# Windows — extract the archive and run:
 ksecret-map.exe version
 ```
 
-## Installation (build from source)
+Build from source:
 
 ```bash
-git clone https://github.com/k8s-secret-usage-scanner/ksecret-map
-cd ksecret-map
+git clone https://github.com/forestian/K8s-Secret-Usage-Scanner
+cd K8s-Secret-Usage-Scanner
 go build -o ksecret-map .
 ```
 
-Or run directly:
+## Use Cases
 
-```bash
-go run . scan --dir ./manifests
-```
+- **Before rotating a Secret** — know every workload and container that depends on it
+- **Cleaning up stale Secrets** — find which Secrets have zero references across all manifests
+- **CI gate** — fail the pipeline if risky Secret patterns are detected (`--fail-on-risk medium`)
+- **Security audit** — spot Secrets exposed as environment variables (higher blast radius than volume mounts)
+- **Cross-namespace review** — detect Secret references that cross namespace boundaries
+
+## Why it matters
+
+Kubernetes Secrets accumulate over time. Teams lose track of which Secrets are still in use, which workloads reference them, and how. Before rotating or deleting a Secret, you need to know its blast radius. `ksecret-map` makes that visible in seconds — without ever reading or printing Secret values.
 
 ## Commands
 
-### `ksecret-map version`
+### `ksecret-map scan`
 
-Print the version.
+Scan manifests or a live cluster for Secret usage. Exactly one of `--file`, `--dir`, or `--cluster` is required.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--file` | | Single manifest file (.yaml, .yml, .json) |
+| `--dir` | | Directory scanned recursively |
+| `--cluster` | | Live cluster scan via kubeconfig |
+| `--namespace` | all | Filter output by namespace |
+| `--secret` | all | Filter results by Secret name |
+| `--format` | `text` | Output format: `text`, `json`, `markdown` |
+| `--output` | stdout | Write output to a file |
+| `--include-unused` | false | Emit findings for Secrets with no detected references |
+| `--fail-on-risk` | `none` | Exit non-zero at or above risk level: `low`, `medium`, `high` |
+
+**Common examples:**
+
+```bash
+# Scan a directory
+ksecret-map scan --dir ./manifests
+
+# Report unused Secrets
+ksecret-map scan --dir ./manifests --include-unused
+
+# Filter by namespace or Secret name
+ksecret-map scan --dir ./manifests --namespace monitoring
+ksecret-map scan --dir ./manifests --secret loki-s3-secret
+
+# Live cluster scan
+ksecret-map scan --cluster --namespace monitoring
+
+# CI gate — fail on medium or higher risk
+ksecret-map scan --dir ./manifests --fail-on-risk medium
+
+# Markdown output for PR comments
+ksecret-map scan --cluster --namespace monitoring --format markdown --output report.md
+```
+
+### `ksecret-map version`
 
 ```
 ksecret-map version 0.1.0
 ```
 
-### `ksecret-map scan`
+## Example Output
 
-Scan manifests or a live cluster for Secret usage.
-
-**Flags:**
-
-| Flag | Description | Default |
-|---|---|---|
-| `--file` | Path to a single manifest file (.yaml, .yml, .json) | |
-| `--dir` | Path to a directory (scanned recursively) | |
-| `--cluster` | Scan a live cluster via kubeconfig | |
-| `--namespace` | Filter by namespace | all |
-| `--secret` | Filter results by Secret name | all |
-| `--format` | Output format: `text`, `json`, `markdown` | `text` |
-| `--output` | Write output to a file instead of stdout | stdout |
-| `--include-unused` | Report Secrets with no detected references | false |
-| `--fail-on-risk` | Exit non-zero on findings at or above risk level: `none`, `low`, `medium`, `high` | `none` |
-
-Exactly one of `--file`, `--dir`, or `--cluster` is required.
-
-## Examples
-
-### Manifest scanning
-
-Scan a single file:
-
-```bash
-ksecret-map scan --file examples/deployment-with-secret.yaml
-```
-
-Scan a directory recursively:
-
-```bash
-ksecret-map scan --dir ./manifests
-```
-
-Scan a directory and report unused Secrets:
-
-```bash
-ksecret-map scan --dir ./manifests --include-unused
-```
-
-Filter by namespace:
-
-```bash
-ksecret-map scan --dir ./manifests --namespace monitoring
-```
-
-Filter by Secret name:
-
-```bash
-ksecret-map scan --dir ./manifests --secret loki-s3-secret
-```
-
-### Live cluster scanning
-
-Scan all accessible namespaces:
-
-```bash
-ksecret-map scan --cluster
-```
-
-Scan a specific namespace:
-
-```bash
-ksecret-map scan --cluster --namespace monitoring
-```
-
-Filter by Secret name in the cluster:
-
-```bash
-ksecret-map scan --cluster --namespace monitoring --secret loki-s3-secret
-```
-
-### Output formats
-
-JSON output:
+**JSON** (useful for scripting or downstream tools):
 
 ```bash
 ksecret-map scan --dir ./manifests --format json
 ```
 
-Markdown output (suitable for GitHub PR comments):
-
-```bash
-ksecret-map scan --cluster --namespace monitoring --format markdown --output report.md
+```json
+{
+  "Mode": "manifest",
+  "ScannedFiles": 4,
+  "ScannedResources": 4,
+  "Summary": {
+    "TotalSecrets": 2,
+    "TotalReferences": 3,
+    "UnusedSecrets": 1,
+    "HighRiskFindings": 0,
+    "MediumRiskFindings": 1,
+    "LowRiskFindings": 2
+  },
+  ...
+}
 ```
 
-### `--include-unused`
-
-By default, Secrets with no detected references are silently tracked in the inventory but do not generate findings. Pass `--include-unused` to emit a `low`-risk finding for each unused Secret.
+**Markdown** (suitable for GitHub PR comments):
 
 ```bash
-ksecret-map scan --dir ./manifests --include-unused
+ksecret-map scan --dir ./manifests --format markdown --output report.md
 ```
 
-### `--fail-on-risk`
-
-Exit with a non-zero status code if any findings meet or exceed the specified risk level. The report is always printed before exit.
-
-```bash
-# Fail if any medium or high risk findings exist (useful in CI)
-ksecret-map scan --dir ./manifests --fail-on-risk medium
-
-# Fail only on high risk findings
-ksecret-map scan --cluster --fail-on-risk high
-```
-
-Risk levels (ordered): `none` < `low` < `medium` < `high`
-
-## Detected reference types
+## Detected Reference Types
 
 | Type | Description |
 |---|---|
@@ -179,7 +190,7 @@ Risk levels (ordered): `none` < `low` < `medium` < `high`
 | `csi` | `volumes[].csi.nodePublishSecretRef.name` |
 | `annotation` | Reloader, Vault, External Secrets, and ArgoCD annotations |
 
-## Finding rules
+## Finding Rules
 
 | Risk | Rule ID | Trigger |
 |---|---|---|
@@ -191,34 +202,36 @@ Risk levels (ordered): `none` < `low` < `medium` < `high`
 | medium | `missing-secret-in-namespace` | Secret exists in a different namespace than the referencing workload |
 | low | `referenced-secret-not-in-manifests` | Secret is referenced but no matching Secret manifest was found (manifest mode only) |
 
-## Scanned resources
+## Scanned Resources
 
-- Pod
-- Deployment
-- StatefulSet
-- DaemonSet
-- ReplicaSet
-- Job
-- CronJob
-- ServiceAccount
+Pod · Deployment · StatefulSet · DaemonSet · ReplicaSet · Job · CronJob · ServiceAccount
+
+## Safety
+
+`ksecret-map` is **read-only**:
+
+- **Never reads or prints Secret data values** — only analyzes names, namespaces, and references
+- **No cluster writes** — manifest mode requires no cluster access; cluster mode is read-only
+- Safe to run in CI pipelines and air-gapped environments (manifest mode is fully offline)
 
 ## Limitations
 
-- **Manifest mode** cannot detect dynamically injected Secrets (e.g., via Vault sidecar, External Secrets Operator, or custom controllers). These may appear as "referenced but not found" findings.
-- **Cluster mode** requires kubeconfig and read access. RBAC permission errors are surfaced as warnings and scanning continues for accessible resources.
+- Manifest mode cannot detect dynamically injected Secrets (Vault sidecar, External Secrets Operator, custom controllers). These may appear as "referenced but not found" findings.
+- Cluster mode requires kubeconfig with read access. RBAC errors are surfaced as warnings; scanning continues for accessible resources.
 - Annotation-based references are matched by key pattern, not by resolving external controller state.
-- Helm-rendered manifests must be pre-rendered to files; `ksecret-map` does not execute Helm.
-- Cross-namespace Secret references are flagged as a finding because Kubernetes enforces namespace scoping, but whether this is a real problem depends on your setup.
-- ReplicaSets owned by Deployments will produce duplicate reference entries. This is intentional — direct ReplicaSet references can exist independently.
+- Helm-rendered manifests must be pre-rendered; `ksecret-map` does not execute Helm.
+- ReplicaSets owned by Deployments produce duplicate reference entries (intentional — direct RS references can exist independently).
+- Cross-namespace Secret references are flagged as findings; whether they are a real problem depends on your setup.
 
-## Roadmap (not yet implemented)
+## Roadmap
 
-- GitHub Actions integration
-- GitHub PR comment bot
-- Secret rotation planner
-- External Secrets Operator support
-- SealedSecrets support
-- Vault integration
+- GitHub Actions integration and PR comment bot
+- External Secrets Operator and SealedSecrets support
 - Helm chart pre-rendering
-- ArgoCD deep integration
+- Vault integration
 - Admission controller mode
+- ArgoCD deep integration
+
+---
+
+Part of the [Forestian Cloud Native Toolkit](https://github.com/forestian) — small CLI tools for Kubernetes, observability, GitOps, and platform engineering.
